@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.3.0",
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/core": "^7.2.0",
     "@supabase/supabase-js": "^2.49.4",
     "@tailwindcss/vite": "^4.0.12",
     "axios": "^1.8.2",
@@ -24,6 +26,7 @@
     "tailwindcss": "^4.0.12"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.2.0",
     "@eslint/js": "^9.21.0",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",

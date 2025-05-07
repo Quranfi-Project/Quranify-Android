@@ -4,6 +4,8 @@ import supabase from '../utils/supbase';
 import { FaUser, FaEnvelope, FaImage, FaBookmark, FaUserEdit, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import supabase_admin from '../utils/subabaseadmin';
+import { FaBars, FaTimes } from 'react-icons/fa';
+
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<'profile' | 'bookmarks'>('profile');
@@ -14,6 +16,7 @@ export default function Settings() {
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     fetchUserProfile();
@@ -150,203 +153,421 @@ export default function Settings() {
     }
   };
 
-  return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-md">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800">Settings</h2>
-        </div>
-        <nav className="p-4">
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`flex items-center w-full p-3 rounded-lg mb-2 ${activeTab === 'profile' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
-          >
-            <FaUserEdit className="mr-3" />
-            Profile Settings
-          </button>
-          <button
-            onClick={() => setActiveTab('bookmarks')}
-            className={`flex items-center w-full p-3 rounded-lg ${activeTab === 'bookmarks' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
-          >
-            <FaBookmark className="mr-3" />
-            Bookmark Settings
-          </button>
-        </nav>
-      </div>
+//   return (
+//     <div className="flex h-screen bg-gray-100">
+//       {/* Sidebar */}
+//       <div className="w-64 bg-white shadow-md">
+//         <div className="p-4 border-b border-gray-200">
+//           <h2 className="text-xl font-semibold text-gray-800">Settings</h2>
+//         </div>
+//         <nav className="p-4">
+//           <button
+//             onClick={() => setActiveTab('profile')}
+//             className={`flex items-center w-full p-3 rounded-lg mb-2 ${activeTab === 'profile' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+//           >
+//             <FaUserEdit className="mr-3" />
+//             Profile Settings
+//           </button>
+//           <button
+//             onClick={() => setActiveTab('bookmarks')}
+//             className={`flex items-center w-full p-3 rounded-lg ${activeTab === 'bookmarks' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+//           >
+//             <FaBookmark className="mr-3" />
+//             Bookmark Settings
+//           </button>
+//         </nav>
+//       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-8 overflow-auto">
-        {activeTab === 'profile' ? (
-          <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-            <h2 className="text-2xl font-bold mb-6 flex items-center">
-              <FaUserEdit className="mr-2" />
-              Profile Settings
-            </h2>
+//       {/* Main Content */}
+//       <div className="flex-1 p-8 overflow-auto">
+//         {activeTab === 'profile' ? (
+//           <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+//             <h2 className="text-2xl font-bold mb-6 flex items-center">
+//               <FaUserEdit className="mr-2" />
+//               Profile Settings
+//             </h2>
             
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* Avatar Section */}
-              <div className="flex flex-col items-center">
-                <div className="relative mb-4">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt="Profile"
-                      className="w-32 h-32 rounded-full object-cover border-4 border-white shadow"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 rounded-full bg-indigo-100 flex items-center justify-center text-4xl font-bold text-indigo-600">
-                      {user?.email?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <label 
-                    htmlFor="avatar-upload"
-                    className="absolute bottom-0 right-0 bg-white p-2 rounded-full shadow-md cursor-pointer hover:bg-gray-100"
-                    title="Change avatar"
-                  >
-                    <FaImage className="text-indigo-600" />
-                    <input
-                      id="avatar-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarUpload}
-                      className="hidden"
-                      disabled={uploading}
-                    />
-                  </label>
-                </div>
-                {uploading && <p className="text-sm text-gray-500">Uploading...</p>}
+//             <div className="flex flex-col md:flex-row gap-8">
+//               {/* Avatar Section */}
+//               <div className="flex flex-col items-center">
+//                 <div className="relative mb-4">
+//                   {avatarUrl ? (
+//                     <img
+//                       src={avatarUrl}
+//                       alt="Profile"
+//                       className="w-32 h-32 rounded-full object-cover border-4 border-white shadow"
+//                     />
+//                   ) : (
+//                     <div className="w-32 h-32 rounded-full bg-indigo-100 flex items-center justify-center text-4xl font-bold text-indigo-600">
+//                       {user?.email?.charAt(0).toUpperCase()}
+//                     </div>
+//                   )}
+//                   <label 
+//                     htmlFor="avatar-upload"
+//                     className="absolute bottom-0 right-0 bg-white p-2 rounded-full shadow-md cursor-pointer hover:bg-gray-100"
+//                     title="Change avatar"
+//                   >
+//                     <FaImage className="text-indigo-600" />
+//                     <input
+//                       id="avatar-upload"
+//                       type="file"
+//                       accept="image/*"
+//                       onChange={handleAvatarUpload}
+//                       className="hidden"
+//                       disabled={uploading}
+//                     />
+//                   </label>
+//                 </div>
+//                 {uploading && <p className="text-sm text-gray-500">Uploading...</p>}
+//               </div>
+
+//               {/* Profile Form */}
+//               <div className="flex-1">
+//                 <form onSubmit={handleProfileUpdate}>
+//                   <div className="mb-4">
+//                     <div className="flex items-center text-gray-700 mb-2">
+//                       <FaUser className="mr-2" />
+//                       <label htmlFor="username">Username</label>
+//                     </div>
+//                     <input
+//                       id="username"
+//                       type="text"
+//                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+//                       value={profile?.username || ''}
+//                       onChange={(e) => setProfile({...profile, username: e.target.value})}
+//                       required
+//                     />
+//                   </div>
+
+//                   <div className="mb-4">
+//                     <div className="flex items-center text-gray-700 mb-2">
+//                       <FaEnvelope className="mr-2" />
+//                       <label htmlFor="email">Email</label>
+//                     </div>
+//                     <input
+//                       id="email"
+//                       type="email"
+//                       className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+//                       value={user?.email || ''}
+//                       disabled
+//                     />
+//                     <p className="text-sm text-gray-500 mt-1">Email can't be changed here</p>
+//                   </div>
+
+//                   <button
+//                     type="submit"
+//                     disabled={loading}
+//                     className="mt-4 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+//                   >
+//                     {loading ? 'Saving...' : 'Save Changes'}
+//                   </button>
+//                 </form>
+
+//                 {/* Danger Zone */}
+//                 <div className="mt-12 pt-6 border-t border-gray-200">
+//                   <h3 className="text-lg font-medium text-red-600 mb-4">Danger Zone</h3>
+//                   <div className="bg-red-50 p-4 rounded-lg">
+//                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+//                       <div>
+//                         <h4 className="font-medium text-red-700">Delete Account</h4>
+//                         <p className="text-sm text-red-600">
+//                           Permanently remove your account and all associated data
+//                         </p>
+//                       </div>
+//                       <button
+//                         type="button"
+//                         onClick={() => setShowConfirmDelete(true)}
+//                         disabled={loading}
+//                         className="flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+//                       >
+//                         <FaTrash className="mr-2" />
+//                         Delete Account
+//                       </button>
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+//             </div>
+//           </div>
+//         ) : (
+//           <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+//             <h2 className="text-2xl font-bold mb-6 flex items-center">
+//               <FaBookmark className="mr-2" />
+//               Bookmark Settings
+//             </h2>
+//             <div className="space-y-4">
+//               <div className="p-4 border border-gray-200 rounded-lg">
+//                 <h3 className="font-medium text-lg mb-2">Export Bookmarks</h3>
+//                 <p className="text-gray-600 mb-3">Download all your bookmarks as a JSON file</p>
+//                 <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800">
+//                   Export Bookmarks
+//                 </button>
+//               </div>
+//               <div className="p-4 border border-gray-200 rounded-lg">
+//                 <h3 className="font-medium text-lg mb-2">Import Bookmarks</h3>
+//                 <p className="text-gray-600 mb-3">Upload a JSON file to import bookmarks</p>
+//                 <input
+//                   type="file"
+//                   accept=".json"
+//                   className="block w-full text-sm text-gray-500
+//                     file:mr-4 file:py-2 file:px-4
+//                     file:rounded-lg file:border-0
+//                     file:text-sm file:font-semibold
+//                     file:bg-indigo-50 file:text-indigo-700
+//                     hover:file:bg-indigo-100"
+//                 />
+//               </div>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+
+//       {showConfirmDelete && (
+//   <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+//     <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
+//       <h3 className="text-lg font-semibold text-gray-800 mb-2">
+//         Confirm Account Deletion
+//       </h3>
+//       <p className="text-gray-600 mb-4">
+//         Are you sure you want to permanently delete your account? This action cannot be undone.
+//       </p>
+//       <div className="flex justify-end gap-3">
+//         <button
+//           onClick={() => setShowConfirmDelete(false)}
+//           className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-100"
+//         >
+//           Cancel
+//         </button>
+//         <button
+//           onClick={handleDeleteAccount}
+//           className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+//           disabled={loading}
+//         >
+//           {loading ? 'Deleting...' : 'Delete'}
+//         </button>
+//       </div>
+//     </div>
+//   </div>
+// )}
+
+//     </div>
+//   );
+
+
+return (
+  <div className="flex flex-col md:flex-row h-screen bg-gray-100">
+    {/* Mobile Header with Hamburger Menu */}
+    <div className="md:hidden flex items-center justify-between p-4 bg-white shadow-md">
+      <h2 className="text-xl font-semibold text-gray-800">Settings</h2>
+      <button 
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100"
+      >
+        {isMobileMenuOpen ? <FaTimes /> : <FaBars />}
+      </button>
+    </div>
+
+    {/* Sidebar - Hidden on mobile unless menu is open */}
+    <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-white shadow-md md:shadow-none`}>
+      <div className="p-4 border-b border-gray-200 hidden md:block">
+        <h2 className="text-xl font-semibold text-gray-800">Settings</h2>
+      </div>
+      <nav className="p-4">
+        <button
+          onClick={() => {
+            setActiveTab('profile');
+            setIsMobileMenuOpen(false);
+          }}
+          className={`flex items-center w-full p-3 rounded-lg mb-2 ${activeTab === 'profile' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+        >
+          <FaUserEdit className="mr-3" />
+          Profile Settings
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('bookmarks');
+            setIsMobileMenuOpen(false);
+          }}
+          className={`flex items-center w-full p-3 rounded-lg ${activeTab === 'bookmarks' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+        >
+          <FaBookmark className="mr-3" />
+          Bookmark Settings
+        </button>
+      </nav>
+    </div>
+
+    {/* Main Content */}
+    <div className="flex-1 p-4 md:p-8 overflow-auto">
+      {activeTab === 'profile' ? (
+        <div className="bg-white rounded-lg shadow p-4 md:p-6 max-w-2xl mx-auto">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
+            <FaUserEdit className="mr-2" />
+            Profile Settings
+          </h2>
+          
+          <div className="flex flex-col gap-6 md:gap-8">
+            {/* Avatar Section */}
+            <div className="flex flex-col items-center">
+              <div className="relative mb-4">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Profile"
+                    className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-white shadow"
+                  />
+                ) : (
+                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-indigo-100 flex items-center justify-center text-3xl md:text-4xl font-bold text-indigo-600">
+                    {user?.email?.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <label 
+                  htmlFor="avatar-upload"
+                  className="absolute bottom-0 right-0 bg-white p-1 md:p-2 rounded-full shadow-md cursor-pointer hover:bg-gray-100"
+                  title="Change avatar"
+                >
+                  <FaImage className="text-indigo-600 text-sm md:text-base" />
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
               </div>
-
-              {/* Profile Form */}
-              <div className="flex-1">
-                <form onSubmit={handleProfileUpdate}>
-                  <div className="mb-4">
-                    <div className="flex items-center text-gray-700 mb-2">
-                      <FaUser className="mr-2" />
-                      <label htmlFor="username">Username</label>
-                    </div>
-                    <input
-                      id="username"
-                      type="text"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      value={profile?.username || ''}
-                      onChange={(e) => setProfile({...profile, username: e.target.value})}
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="flex items-center text-gray-700 mb-2">
-                      <FaEnvelope className="mr-2" />
-                      <label htmlFor="email">Email</label>
-                    </div>
-                    <input
-                      id="email"
-                      type="email"
-                      className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-                      value={user?.email || ''}
-                      disabled
-                    />
-                    <p className="text-sm text-gray-500 mt-1">Email can't be changed here</p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="mt-4 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
-                  >
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </form>
-
-                {/* Danger Zone */}
-                <div className="mt-12 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-medium text-red-600 mb-4">Danger Zone</h3>
-                  <div className="bg-red-50 p-4 rounded-lg">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div>
-                        <h4 className="font-medium text-red-700">Delete Account</h4>
-                        <p className="text-sm text-red-600">
-                          Permanently remove your account and all associated data
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmDelete(true)}
-                        disabled={loading}
-                        className="flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
-                      >
-                        <FaTrash className="mr-2" />
-                        Delete Account
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {uploading && <p className="text-sm text-gray-500">Uploading...</p>}
             </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-            <h2 className="text-2xl font-bold mb-6 flex items-center">
-              <FaBookmark className="mr-2" />
-              Bookmark Settings
-            </h2>
-            <div className="space-y-4">
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-medium text-lg mb-2">Export Bookmarks</h3>
-                <p className="text-gray-600 mb-3">Download all your bookmarks as a JSON file</p>
-                <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800">
-                  Export Bookmarks
+
+            {/* Profile Form */}
+            <div className="flex-1">
+              <form onSubmit={handleProfileUpdate}>
+                <div className="mb-4">
+                  <div className="flex items-center text-gray-700 mb-2">
+                    <FaUser className="mr-2" />
+                    <label htmlFor="username">Username</label>
+                  </div>
+                  <input
+                    id="username"
+                    type="text"
+                    className="w-full p-2 md:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    value={profile?.username || ''}
+                    onChange={(e) => setProfile({...profile, username: e.target.value})}
+                    required
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex items-center text-gray-700 mb-2">
+                    <FaEnvelope className="mr-2" />
+                    <label htmlFor="email">Email</label>
+                  </div>
+                  <input
+                    id="email"
+                    type="email"
+                    className="w-full p-2 md:p-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                    value={user?.email || ''}
+                    disabled
+                  />
+                  <p className="text-xs md:text-sm text-gray-500 mt-1">Email can't be changed here</p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="mt-4 w-full md:w-auto px-4 py-2 md:px-6 md:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Save Changes'}
                 </button>
-              </div>
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-medium text-lg mb-2">Import Bookmarks</h3>
-                <p className="text-gray-600 mb-3">Upload a JSON file to import bookmarks</p>
-                <input
-                  type="file"
-                  accept=".json"
-                  className="block w-full text-sm text-gray-500
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-lg file:border-0
-                    file:text-sm file:font-semibold
-                    file:bg-indigo-50 file:text-indigo-700
-                    hover:file:bg-indigo-100"
-                />
+              </form>
+
+              {/* Danger Zone */}
+              <div className="mt-8 md:mt-12 pt-4 md:pt-6 border-t border-gray-200">
+                <h3 className="text-base md:text-lg font-medium text-red-600 mb-3 md:mb-4">Danger Zone</h3>
+                <div className="bg-red-50 p-3 md:p-4 rounded-lg">
+                  <div className="flex flex-col gap-3 md:gap-4">
+                    <div>
+                      <h4 className="font-medium text-red-700">Delete Account</h4>
+                      <p className="text-xs md:text-sm text-red-600">
+                        Permanently remove your account and all associated data
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmDelete(true)}
+                      disabled={loading}
+                      className="flex items-center justify-center px-3 py-1 md:px-4 md:py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+                    >
+                      <FaTrash className="mr-2" />
+                      Delete Account
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {showConfirmDelete && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-    <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
-      <h3 className="text-lg font-semibold text-gray-800 mb-2">
-        Confirm Account Deletion
-      </h3>
-      <p className="text-gray-600 mb-4">
-        Are you sure you want to permanently delete your account? This action cannot be undone.
-      </p>
-      <div className="flex justify-end gap-3">
-        <button
-          onClick={() => setShowConfirmDelete(false)}
-          className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-100"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleDeleteAccount}
-          className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-          disabled={loading}
-        >
-          {loading ? 'Deleting...' : 'Delete'}
-        </button>
-      </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow p-4 md:p-6 max-w-2xl mx-auto">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
+            <FaBookmark className="mr-2" />
+            Bookmark Settings
+          </h2>
+          <div className="space-y-3 md:space-y-4">
+            <div className="p-3 md:p-4 border border-gray-200 rounded-lg">
+              <h3 className="font-medium text-base md:text-lg mb-2">Export Bookmarks</h3>
+              <p className="text-sm text-gray-600 mb-3">Download all your bookmarks as a JSON file</p>
+              <button className="w-full md:w-auto px-3 py-1 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-800">
+                Export Bookmarks
+              </button>
+            </div>
+            <div className="p-3 md:p-4 border border-gray-200 rounded-lg">
+              <h3 className="font-medium text-base md:text-lg mb-2">Import Bookmarks</h3>
+              <p className="text-sm text-gray-600 mb-3">Upload a JSON file to import bookmarks</p>
+              <input
+                type="file"
+                accept=".json"
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-1 file:px-3 md:file:py-2 md:file:px-4
+                  file:rounded-lg file:border-0
+                  file:text-xs md:file:text-sm file:font-semibold
+                  file:bg-indigo-50 file:text-indigo-700
+                  hover:file:bg-indigo-100"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
+    {/* Modal - No changes needed here as it's already responsive */}
+    {showConfirmDelete && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+        <div className="bg-white rounded-xl p-4 md:p-6 mx-4 md:mx-0 md:w-full max-w-md shadow-lg">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+            Confirm Account Deletion
+          </h3>
+          <p className="text-sm md:text-base text-gray-600 mb-4">
+            Are you sure you want to permanently delete your account? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowConfirmDelete(false)}
+              className="px-3 py-1 md:px-4 md:py-2 rounded-md border border-gray-300 hover:bg-gray-100 text-sm md:text-base"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteAccount}
+              className="px-3 py-1 md:px-4 md:py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm md:text-base"
+              disabled={loading}
+            >
+              {loading ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
-)}
-
-    </div>
-  );
-}
+);
+ }
