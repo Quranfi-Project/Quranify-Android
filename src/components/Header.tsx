@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { RxHamburgerMenu } from "react-icons/rx";
 import { FaUserCircle, FaCog, FaBookmark, FaSignOutAlt } from "react-icons/fa";
-import word from "../assets/Quranify(word).png";
+import word from "../assets/Quranfi(word).svg";
 import { useState, useEffect, useRef } from 'react';
 import  supabase  from '../utils/supbase';
 import { toast } from 'react-toastify';
