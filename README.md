@@ -2,7 +2,7 @@
 
 Quranify is a Quran reading and listening app built with Vite + React and packaged for Android via Capacitor. Browse all 114 surahs, read with word-by-word translations, and listen to 300+ reciters with live word highlighting.
 
-**Live:** [quranify.xyz](https://quranify.xyz)
+**Live:** [quranfi.xyz](https://quranfi.xyz)
 
 ## Features
 
