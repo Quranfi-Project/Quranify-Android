@@ -1,171 +1,43 @@
-// // src/components/AudioPlayer.tsx
-// import  { useRef, useState, useEffect } from 'react';
-// import { FaPlay, FaPause, FaForward, FaStepForward } from 'react-icons/fa';
-
-// const CustomAudioPlayer = ({
-//   audioUrl,
-//   onNext,
-//   title,
-//   onPlay,
-//   onPause,
-//   onEnded,
-
-  
-// }: {
-//   audioUrl: string;
-//   onNext?: () => void;
-//   title?: string;
-//   onPlay?: () => void;
-//   onPause?: () => void;
-//   onEnded?: () => void;
-
-// }) => {
-//   const audioRef = useRef<HTMLAudioElement>(null);
-//   const [isPlaying, setIsPlaying] = useState(false);
-//   const [currentTime, setCurrentTime] = useState(0);
-//   const [duration, setDuration] = useState(0);
-
-//   // Update current time and duration
-//   useEffect(() => {
-//     const audio = audioRef.current;
-//     if (audio) {
-//       const updateProgress = () => {
-//         // console.log('Current Time:', audio.currentTime); // Debugging log
-//         setCurrentTime(audio.currentTime);
-//       };
-
-//       // Add event listeners
-//       audio.addEventListener('timeupdate', updateProgress);
-//       audio.addEventListener('loadedmetadata', () => {
-//         setDuration(audio.duration);
-//       });
-
-//       // Cleanup event listeners
-//       return () => {
-//         audio.removeEventListener('timeupdate', updateProgress);
-//       };
-//     }
-//   }, [audioUrl]); // Re-run effect when audioUrl changes
-
-//   // Play/pause handler
-//   const handlePlayPause = () => {
-//     if (audioRef.current) {
-//       if (isPlaying) {
-//         audioRef.current.pause();
-//         onPause?.();
-
-//       } else {
-//         audioRef.current.play();
-//         onPlay?.();
-
-//       }
-//       setIsPlaying(!isPlaying);
-//     }
-//   };
-
-//   useEffect(() => {
-//     const audio = audioRef.current;
-//     if (audio) {
-//       const handleEnded = () => {
-//         setIsPlaying(false);
-//         onEnded?.();
-
-//       };
-      
-//       audio.addEventListener('ended', handleEnded);
-//       return () => {
-//         audio.removeEventListener('ended', handleEnded);
-//       };
-//     }
-//   }, [audioUrl, onEnded]);
-//   // Seek handler
-//   const handleSeek = (time: number) => {
-//     if (audioRef.current) {
-//       audioRef.current.currentTime = time;
-//     }
-//   };
-
-//   // Format time (e.g., 01:23)
-//   const formatTime = (time: number) => {
-//     const minutes = Math.floor(time / 60);
-//     const seconds = Math.floor(time % 60);
-//     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-//   };
-
-//   return (
-//     <div className="bg-white p-4 rounded-lg shadow-lg">
-//       {/* Title */}
-//       {title && <h3 className="text-lg font-semibold mb-2">{title}</h3>}
-
-//       {/* Progress Bar */}
-//       <div className="flex items-center space-x-2">
-//         <span className="text-sm">{formatTime(currentTime)}</span>
-//         <input
-//           type="range"
-//           min="0"
-//           max={duration}
-//           value={currentTime}
-//           onChange={(e) => handleSeek(Number(e.target.value))}
-//           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-//         />
-//         <span className="text-sm">{formatTime(duration)}</span>
-//       </div>
-
-//       {/* Controls */}
-//       <div className="flex items-center justify-center space-x-4 mt-4">
-//         <button
-//           onClick={handlePlayPause}
-//           className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-//         >
-//           {isPlaying ? <FaPause size={20} /> : <FaPlay size={20} />}
-//         </button>
-//         <button
-//           onClick={() => handleSeek(currentTime + 10)} // Seek forward by 10 seconds
-//           className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-//         >
-//           <FaForward size={20} />
-//         </button>
-//         {onNext && (
-//           <button
-//             onClick={onNext}
-//             className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-//           >
-//             <FaStepForward size={20} />
-//           </button>
-//         )}
-//       </div>
-
-//       {/* Hidden Audio Element */}
-//       <audio ref={audioRef} src={audioUrl} />
-//     </div>
-//   );
-// };
-
-// export default CustomAudioPlayer;
-
-
-// src/components/AudioPlayer.tsx
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
-import { FaPlay, FaPause, FaForward, FaStepForward } from 'react-icons/fa';
+import { FaPlay, FaPause, FaForward, FaRedo, FaTimes } from 'react-icons/fa';
 
 export interface AudioPlayerRef {
   play: () => void;
   pause: () => void;
+  seekTo: (seconds: number) => void;
+  playSegment: (startMs: number, endMs: number, onEnd?: () => void) => void;
+  clearSegment: () => void;
   isPlaying: boolean;
 }
 
 const CustomAudioPlayer = forwardRef<AudioPlayerRef, {
   audioUrl: string;
-  onNext?: () => void;
+  fallbackUrl?: string | null;
   title?: string;
   onPlay?: () => void;
   onPause?: () => void;
   onEnded?: () => void;
-}>(({ audioUrl, onNext, title, onPlay, onPause, onEnded }, ref) => {
+  onTimeUpdate?: (currentTime: number) => void;
+}>(({ audioUrl, fallbackUrl, title, onPlay, onPause, onEnded, onTimeUpdate }, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [repeatCount, setRepeatCount] = useState(0);
+  const [completedRepeats, setCompletedRepeats] = useState(0);
+  const [showRepeatInput, setShowRepeatInput] = useState(false);
+  const [customRepeat, setCustomRepeat] = useState('1');
+  const triedFallback = useRef(false);
+  const segmentRef = useRef<{ endSec: number; onEnd?: () => void } | null>(null);
+  // Ref ensures the timeupdate handler always calls the latest onTimeUpdate without re-registering
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
+
+  // Reset state when audioUrl changes
+  useEffect(() => {
+    triedFallback.current = false;
+    segmentRef.current = null;
+  }, [audioUrl]);
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -183,16 +55,41 @@ const CustomAudioPlayer = forwardRef<AudioPlayerRef, {
         onPause?.();
       }
     },
+    seekTo: (seconds: number) => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = seconds;
+      }
+    },
+    playSegment: (startMs: number, endMs: number, onEnd?: () => void) => {
+      if (audioRef.current) {
+        segmentRef.current = { endSec: endMs / 1000, onEnd };
+        audioRef.current.currentTime = startMs / 1000;
+        audioRef.current.play();
+        setIsPlaying(true);
+        onPlay?.();
+      }
+    },
+    clearSegment: () => {
+      segmentRef.current = null;
+    },
     isPlaying
   }));
 
-  // Rest of the component remains the same...
   // Update current time and duration
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
       const updateProgress = () => {
         setCurrentTime(audio.currentTime);
+        onTimeUpdateRef.current?.(audio.currentTime);
+        // Segment end detection
+        if (segmentRef.current && audio.currentTime >= segmentRef.current.endSec) {
+          const { onEnd } = segmentRef.current;
+          segmentRef.current = null;
+          audio.pause();
+          setIsPlaying(false);
+          onEnd?.();
+        }
       };
 
       audio.addEventListener('timeupdate', updateProgress);
@@ -223,16 +120,23 @@ const CustomAudioPlayer = forwardRef<AudioPlayerRef, {
     const audio = audioRef.current;
     if (audio) {
       const handleEnded = () => {
-        setIsPlaying(false);
-        onEnded?.();
+        if (completedRepeats + 1 < repeatCount) {
+          setCompletedRepeats(prev => prev + 1);
+          audio.currentTime = 0;
+          audio.play();
+        } else {
+          setIsPlaying(false);
+          setCompletedRepeats(0);
+          onEnded?.();
+        }
       };
-      
+
       audio.addEventListener('ended', handleEnded);
       return () => {
         audio.removeEventListener('ended', handleEnded);
       };
     }
-  }, [audioUrl, onEnded]);
+  }, [audioUrl, onEnded, repeatCount, completedRepeats]);
 
   const handleSeek = (time: number) => {
     if (audioRef.current) {
@@ -246,44 +150,124 @@ const CustomAudioPlayer = forwardRef<AudioPlayerRef, {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const handleRepeatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const count = parseInt(customRepeat);
+    if (!isNaN(count) && count >= 0) {
+      setRepeatCount(count);
+      setCompletedRepeats(0);
+      setShowRepeatInput(false);
+    }
+  };
+
+  const cancelRepeat = () => {
+    setRepeatCount(0);
+    setShowRepeatInput(false);
+  };
+
+  const handleError = () => {
+    if (!triedFallback.current && fallbackUrl && audioRef.current) {
+      triedFallback.current = true;
+      audioRef.current.src = fallbackUrl;
+      if (isPlaying) {
+        audioRef.current.play().catch(() => {});
+      }
+    }
+  };
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow-lg">
-      {title && <h3 className="text-lg font-semibold mb-2">{title}</h3>}
-      <div className="flex items-center space-x-2">
-        <span className="text-sm">{formatTime(currentTime)}</span>
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+      {title && (
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 truncate">
+          {title}
+        </p>
+      )}
+
+      {/* Progress bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-xs text-gray-500 dark:text-gray-400 w-10 text-right shrink-0">
+          {formatTime(currentTime)}
+        </span>
         <input
           type="range"
           min="0"
-          max={duration}
+          max={duration || 0}
           value={currentTime}
           onChange={(e) => handleSeek(Number(e.target.value))}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          className="w-full h-1.5 rounded-full bg-gray-200 dark:bg-gray-600 accent-gold-500 cursor-pointer"
         />
-        <span className="text-sm">{formatTime(duration)}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 w-10 shrink-0">
+          {formatTime(duration)}
+        </span>
       </div>
-      <div className="flex items-center justify-center space-x-4 mt-4">
+
+      {/* Controls */}
+      <div className="flex items-center justify-center gap-4">
         <button
           onClick={handlePlayPause}
-          className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          className="p-3 bg-gold-500 hover:bg-gold-600 text-gray-900 rounded-full shadow-md transition-all duration-150 active:scale-95"
         >
-          {isPlaying ? <FaPause size={20} /> : <FaPlay size={20} />}
+          {isPlaying ? <FaPause size={18} /> : <FaPlay size={18} />}
         </button>
+
         <button
           onClick={() => handleSeek(currentTime + 10)}
-          className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          className="p-2 text-gray-500 dark:text-gray-400 hover:text-gold-600 dark:hover:text-gold-400 rounded-lg transition-colors"
+          title="Skip 10s"
         >
-          <FaForward size={20} />
+          <FaForward size={18} />
         </button>
-        {onNext && (
-          <button
-            onClick={onNext}
-            className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-          >
-            <FaStepForward size={20} />
-          </button>
-        )}
+
+        <div className="relative">
+          {showRepeatInput ? (
+            <form onSubmit={handleRepeatSubmit} className="flex items-center gap-1">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={customRepeat}
+                onChange={(e) => setCustomRepeat(e.target.value)}
+                className="w-16 p-1 border border-gray-300 dark:border-gray-600 rounded
+                  bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                placeholder="Times"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="p-1 bg-gold-500 text-gray-900 rounded hover:bg-gold-600 text-sm"
+              >
+                Set
+              </button>
+              <button
+                type="button"
+                onClick={cancelRepeat}
+                className="p-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 text-sm"
+              >
+                <FaTimes size={14} />
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setShowRepeatInput(true)}
+              className={`p-2 rounded-lg transition-colors ${
+                repeatCount > 0
+                  ? 'text-gold-600 dark:text-gold-400 bg-gold-50 dark:bg-gold-900/30'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gold-600 dark:hover:text-gold-400'
+              }`}
+              title={repeatCount > 0 ? `Repeating ${repeatCount} times` : 'Set repeat'}
+            >
+              <div className="flex items-center gap-1">
+                <FaRedo size={16} />
+                {repeatCount > 0 && (
+                  <span className="text-xs font-bold">{repeatCount}</span>
+                )}
+              </div>
+            </button>
+          )}
+        </div>
       </div>
-      <audio ref={audioRef} src={audioUrl} />
+
+      <audio ref={audioRef} src={audioUrl || undefined} onError={handleError} />
     </div>
   );
 });

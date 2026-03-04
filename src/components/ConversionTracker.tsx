@@ -12,10 +12,10 @@ const ConversionTracker: React.FC = () => {
 
   return (
     <noscript>
-      <img 
-        src="https://ad.doubleclick.net/ddm/activity/src=13776505;type=websi0;cat=quran000;dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=${GDPR};gdpr_consent=${GDPR_CONSENT_755};ord=1?" 
-        width="1" 
-        height="1" 
+      <img
+        src="https://ad.doubleclick.net/ddm/activity/src=13776505;type=websi0;cat=quran000;dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=${GDPR};gdpr_consent=${GDPR_CONSENT_755};ord=1?"
+        width="1"
+        height="1"
         alt=""
       />
     </noscript>

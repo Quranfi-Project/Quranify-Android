@@ -1,42 +1,22 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quranify</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&display=swap" rel="stylesheet">
-
-
-
-
-<!-- Global Snippet -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=DC-13776505"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'DC-13776505');
-</script>
-
-<!-- GPT Script (only need this once) -->
-<script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
-<script>
-  window.googletag = window.googletag || {cmd: []};
-  googletag.cmd.push(function() {
-    // Define all ad slots here
-    googletag.defineSlot('/1092393/300x250_Quranify.xyz_v1', [300, 250], 'div-gpt-ad-1743742432299-0').addService(googletag.pubads());
-    googletag.defineSlot('/1092393/160x600_Quranify.xyz_v1', [160, 600], 'div-gpt-ad-1743742739389-0').addService(googletag.pubads());
-    googletag.defineSlot('/1092393/728x90_Quranify.xyz_v1', [728, 90], 'div-gpt-ad-1743743310716-0').addService(googletag.pubads());
-    googletag.defineSlot('/1092393/320x50_Quranify.xyz_v1', [320, 50], 'div-gpt-ad-1743743526860-0').addService(googletag.pubads());
-    
-    googletag.pubads().enableSingleRequest();
-    googletag.enableServices();
-  });
-</script>
-</head>
+    <title>Quranfi</title>
+    <link rel="icon" href="/favicon.ico" />
+    <script>
+      (function(){
+        var s = localStorage.getItem('theme');
+        var p = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (s === 'dark' || (!s && p)) document.documentElement.classList.add('dark');
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://quranify-project.github.io/fonts/style.css" rel="stylesheet" />
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

@@ -1,413 +1,685 @@
-// src/components/SurahDetail.tsx
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchSurah, fetchReciters, fetchVerseAudio, fetchChapterAudio } from '../utils/api';
+import { fetchSurah, fetchReciters, fetchVerseTimings, fetchWordData, getChapterAudioUrl, WordData } from '../utils/api';
 import CustomAudioPlayer, { AudioPlayerRef } from './AudioPlayer';
-import { FaPlay, FaPause, FaArrowLeft,FaRegBookmark, FaBookmark } from 'react-icons/fa';
-import supabase  from '../utils/supbase';
+import { FaPlay, FaPause, FaArrowLeft, FaRegBookmark, FaBookmark, FaCog, FaTimes, FaSearch, FaBookOpen, FaList } from 'react-icons/fa';
+import { addBookmark, getBookmarks, removeBookmark as removeBookmarkDB } from '../utils/bookmarksDB';
+import { bookmarkChannel } from "../utils/sync";
+
 import '../css/surah.css';
 
 const SurahDetail = () => {
-  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set()); // Track bookmarked verses
   const { surahNumber } = useParams<{ surahNumber: string }>();
   const navigate = useNavigate();
+
   const [surah, setSurah] = useState<any>(null);
-  const [reciters, setReciters] = useState<{ [key: string]: string }>({});
-  const [selectedReciter, setSelectedReciter] = useState<string>('1'); // Default reciter: Mishary Rashid Al-Afasy
-  const [chapterAudio, setChapterAudio] = useState<{ [key: string]: { reciter: string; url: string; originalUrl: string } }>({});
-  const [currentVerseIndex, setCurrentVerseIndex] = useState<number | null>(null); // Track the currently playing verse index
-  const [isPlaying, setIsPlaying] = useState(false); // Track play/pause state
-  const audioRef = useRef<HTMLAudioElement | null>(null); // Ref to store the Audio object
+  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+  const [reciters, setReciters] = useState<Record<string, { name: string; folderUrl: string }>>({});
+  const [selectedReciter, setSelectedReciter] = useState<string>('');
+  const [verseTimings, setVerseTimings] = useState<Record<string, { startTime: number; endTime: number }>>({});
+  const [currentVerseIndex, setCurrentVerseIndex] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [fontSize, setFontSize] = useState<number>(4);
+  const [repeatCount, setRepeatCount] = useState<number>(1);
+  const [, setCurrentRepeat] = useState<number>(0);
+  const [reciterSearch, setReciterSearch] = useState('');
+  const [readingMode, setReadingMode] = useState(false);
+
+  // Word-by-word highlighting state
+  const [wordData, setWordData] = useState<WordData | null>(null);
+  // playingVerseIndex: which verse is currently highlighted (set by timeupdate, independent of currentVerseIndex)
+  const [playingVerseIndex, setPlayingVerseIndex] = useState<number | null>(null);
+  // activeWord: 0-based word range being highlighted in playingVerseIndex
+  const [activeWord, setActiveWord] = useState<{ from: number; to: number } | null>(null);
+
   const chapterAudioPlayerRef = useRef<AudioPlayerRef>(null);
-// Helper function to get or create guest session ID
 
+  // Derived chapter audio URL
+  const reciterData = reciters[selectedReciter];
+  const chapterAudioUrl = reciterData && surahNumber
+    ? getChapterAudioUrl(reciterData.folderUrl, Number(surahNumber))
+    : null;
 
-const getGuestSessionId = () => {
-  let guestId = localStorage.getItem('guest_session_id');
-  if (!guestId) {
-    guestId = crypto.randomUUID(); // or use a UUID generator if crypto isn't available
-    localStorage.setItem('guest_session_id', guestId);
-  }
-  return guestId;
-};
-    // Fetch bookmarks on load (for logged-in users or guests)
-    useEffect(() => {
-      const loadBookmarks = async () => {
-        // Get session (must await!)
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user ?? null;
-        let fetchedBookmarks = new Set<string>();
-    
-        if (user) {
-          // Fetch user's bookmarks
-          const { data } = await supabase
-            .from('bookmarks')
-            .select('verse_id')
-            .eq('user_id', user.id); // Use user.id directly
-          if (data) data.forEach((b) => fetchedBookmarks.add(b.verse_id));
-        } else {
-          // Fetch guest bookmarks
-          const guestId = localStorage.getItem('guest_session_id');
-          if (guestId) {
-            const { data } = await supabase
-              .from('bookmarks')
-              .select('verse_id')
-              .eq('guest_session_id', guestId);
-            if (data) data.forEach((b) => fetchedBookmarks.add(b.verse_id));
-          }
-        }
-    
-        setBookmarks(fetchedBookmarks);
-      };
-    
-      loadBookmarks();
-    }, [surahNumber]);
+  const filteredReciters = Object.entries(reciters).filter(([, { name }]) =>
+    name.toLowerCase().includes(reciterSearch.toLowerCase())
+  );
 
+  // -------------------------------
+  // Load Bookmarks
+  // -------------------------------
+  const reloadBookmarks = async () => {
+    const data = await getBookmarks();
+    setBookmarks(new Set(data.map((b) => b.verse_id)));
+  };
 
-  // Toggle bookmark for a verse (e.g., "2:255")
-  const toggleBookmark = async (verseId: string) => {
-  try {
-    // Get current session properly
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user ?? null;
-    const isBookmarked = bookmarks.has(verseId);
-
-    if (isBookmarked) {
-      // Remove bookmark
-      if (user) {
-        const { error } = await supabase
-          .from('bookmarks')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('verse_id', verseId);
-        if (error) throw error;
-      } else {
-        const guestId = localStorage.getItem('guest_session_id');
-        if (guestId) {
-          const { error } = await supabase
-            .from('bookmarks')
-            .delete()
-            .eq('guest_session_id', guestId)
-            .eq('verse_id', verseId);
-          if (error) throw error;
-        }
-      }
-      setBookmarks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(verseId);
-        return newSet;
-      });
-    } else {
-      // Add bookmark
-      if (user) {
-        const { error } = await supabase
-          .from('bookmarks')
-          .upsert({ 
-            user_id: user.id, 
-            verse_id: verseId,
-            created_at: new Date().toISOString()
-          });
-        if (error) throw error;
-      } else {
-        const guestId = getGuestSessionId();
-        const { error } = await supabase
-          .from('bookmarks')
-          .upsert({
-            guest_session_id: guestId,
-            verse_id: verseId,
-            created_at: new Date().toISOString()
-          });
-        if (error) throw error;
-      }
-      setBookmarks(prev => new Set(prev).add(verseId));
-    }
-  } catch (error) {
-    console.error("Failed to toggle bookmark:", error);
-    // Optionally show error to user (e.g., using a toast notification)
-  }
-};
-  // // Helper: Generate a verse ID like "5:32" (surah:ayah)
- 
-  // const getVerseId = (ayahIndex: number) => {
-  //   return `${surah.surahNo}:${ayahIndex + 1}`;
-  // };
-    
   useEffect(() => {
-    const loadSurah = async () => {
-      try {
-        const data = await fetchSurah(Number(surahNumber));
-        setSurah(data);
-      } catch (error) {
-        console.error('Error fetching Surah:', error);
-      }
-    };
-    loadSurah();
-
-    const loadReciters = async () => {
-      try {
-        const data = await fetchReciters();
-        setReciters(data);
-      } catch (error) {
-        console.error('Error fetching reciters:', error);
-      }
-    };
-    loadReciters();
-
-    const loadChapterAudio = async () => {
-      try {
-        const data = await fetchChapterAudio(Number(surahNumber));
-        setChapterAudio(data);
-      } catch (error) {
-        console.error('Error fetching chapter audio:', error);
-      }
-    };
-    loadChapterAudio();
+    reloadBookmarks();
   }, [surahNumber]);
 
-  // Function to handle next Surah
-  const handleNextSurah = () => {
-    const nextSurahNumber = Number(surahNumber) + 1;
-    if (nextSurahNumber <= 114) { // There are 114 Surahs in the Quran
-      navigate(`/surah/${nextSurahNumber}`);
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState === "visible") {
+        await reloadBookmarks();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
+  useEffect(() => {
+    const listener = async (msg: MessageEvent) => {
+      if (msg.data === "BOOKMARKS_UPDATED") {
+        await reloadBookmarks();
+      }
+    };
+
+    bookmarkChannel.addEventListener("message", listener);
+    return () => bookmarkChannel.removeEventListener("message", listener);
+  }, []);
+
+  const toggleBookmark = async (verseId: string) => {
+    if (bookmarks.has(verseId)) {
+      await removeBookmarkDB(verseId);
+      const updated = new Set(bookmarks);
+      updated.delete(verseId);
+      setBookmarks(updated);
+    } else {
+      await addBookmark({
+        id: verseId,
+        verse_id: verseId,
+        created_at: new Date().toISOString(),
+      });
+      const updated = new Set(bookmarks);
+      updated.add(verseId);
+      setBookmarks(updated);
     }
+
+    bookmarkChannel.postMessage("BOOKMARKS_UPDATED");
   };
 
-  const convertToArabicNumerals = (num: number): string => {
-    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-    return num.toString().split('').map(digit => arabicNumerals[parseInt(digit)]).join('');
-  };
+  // -------------------------------
+  // Load Surah + Reciters + Word Data
+  // -------------------------------
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [surahData, reciterList] = await Promise.all([
+          fetchSurah(Number(surahNumber)),
+          fetchReciters(),
+        ]);
+        setSurah(surahData);
+        setReciters(reciterList);
 
+        const defaultReciter = Object.keys(reciterList)[0] ?? '';
+        if (defaultReciter) setSelectedReciter(defaultReciter);
+      } catch (error) {
+        console.error('Error loading Surah:', error);
+      }
+    };
+    loadData();
 
-  // Add this function to your SurahDetail component
+    // Fetch word data in parallel — non-blocking, gracefully ignored on failure
+    fetchWordData(Number(surahNumber))
+      .then(setWordData)
+      .catch(() => setWordData(null));
+  }, [surahNumber]);
+
+  // Re-fetch verse timings when reciter or surah changes
+  useEffect(() => {
+    if (!surahNumber || !selectedReciter) return;
+    fetchVerseTimings(Number(surahNumber), selectedReciter)
+      .then(timings => {
+        setVerseTimings(timings);
+        // Pre-seek past any ta'awwudh prefix (some reciters prepend it before verse 1)
+        const verse1 = timings[`${surahNumber}:1`];
+        if (verse1 && verse1.startTime > 500) {
+          chapterAudioPlayerRef.current?.seekTo(verse1.startTime / 1000);
+        }
+      })
+      .catch(() => setVerseTimings({}));
+  }, [selectedReciter, surahNumber]);
+
+  // -------------------------------
+  // Audio handling
+  // -------------------------------
   const stopAllAudio = () => {
-    // Stop verse audio if playing
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    chapterAudioPlayerRef.current?.clearSegment();
+    chapterAudioPlayerRef.current?.pause();
     setIsPlaying(false);
     setCurrentVerseIndex(null);
-    
-    // Stop chapter audio if playing
-    if (chapterAudioPlayerRef.current?.isPlaying) {
-      chapterAudioPlayerRef.current.pause();
-    }
+    setCurrentRepeat(0);
+    setPlayingVerseIndex(null);
+    setActiveWord(null);
   };
 
   const handleVerseAudio = (index: number) => {
-    const audioUrl = fetchVerseAudio(selectedReciter, surah.surahNo, index + 1);
+    if (!surah) return;
+
+    const verseKey = `${surah.surahNo}:${index + 1}`;
+    const timing = verseTimings[verseKey];
+    if (!timing) return;
 
     if (currentVerseIndex === index && isPlaying) {
-      // Pause the currently playing audio
       stopAllAudio();
+      return;
+    }
+
+    stopAllAudio();
+    setCurrentVerseIndex(index);
+    setIsPlaying(true);
+    setCurrentRepeat(0);
+
+    const playWithRepeat = (repeatsDone: number) => {
+      chapterAudioPlayerRef.current?.playSegment(
+        timing.startTime,
+        timing.endTime,
+        () => {
+          setCurrentRepeat(prev => prev + 1);
+          if (repeatsDone + 1 < repeatCount) {
+            playWithRepeat(repeatsDone + 1);
+          } else {
+            setIsPlaying(false);
+            setCurrentVerseIndex(null);
+            setCurrentRepeat(0);
+            setPlayingVerseIndex(null);
+            setActiveWord(null);
+          }
+        }
+      );
+    };
+
+    playWithRepeat(0);
+  };
+
+  // -------------------------------
+  // Word-by-word time handler
+  // Called on every timeupdate from AudioPlayer (~4x/sec)
+  // -------------------------------
+  const handleTimeUpdate = (currentTime: number) => {
+    if (!wordData || !surah) return;
+
+    const currentTimeMs = currentTime * 1000;
+    let newVerseIndex: number | null = null;
+
+    if (currentVerseIndex !== null) {
+      // Verse-level playback via verse button
+      newVerseIndex = currentVerseIndex;
     } else {
-      // Stop all audio first
-      stopAllAudio();
-      
-      // Create a new Audio object and play it
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-      audio.play();
+      // Chapter-level playback — find current verse from timing
+      for (let i = 0; i < surah.arabic1.length; i++) {
+        const timing = verseTimings[`${surah.surahNo}:${i + 1}`];
+        if (timing && currentTimeMs >= timing.startTime && currentTimeMs < timing.endTime) {
+          newVerseIndex = i;
+          break;
+        }
+      }
+    }
 
-      // Update state
-      setCurrentVerseIndex(index);
-      setIsPlaying(true);
+    if (newVerseIndex === null) {
+      if (playingVerseIndex !== null) {
+        setPlayingVerseIndex(null);
+        setActiveWord(null);
+      }
+      return;
+    }
 
-      // Handle when the audio ends
-      audio.onended = () => {
-        setIsPlaying(false);
-        setCurrentVerseIndex(null);
-        audioRef.current = null;
-      };
+    // Update playing verse index when it changes
+    if (newVerseIndex !== playingVerseIndex) {
+      setPlayingVerseIndex(newVerseIndex);
+      setActiveWord(null);
+    }
+
+    const verseKey = `${surah.surahNo}:${newVerseIndex + 1}`;
+    const timing = verseTimings[verseKey];
+    const segments = wordData.segments[verseKey];
+    if (!timing || !segments?.length) return;
+
+    const verseDuration = timing.endTime - timing.startTime;
+    if (verseDuration <= 0) return;
+
+    const qfVerseDuration = segments[segments.length - 1][3]; // timeTo of last segment
+    if (qfVerseDuration <= 0) return;
+
+    // Some reciters prepend ta'awwudh (أعوذ بالله) before verse 1, which inflates
+    // the verse window but isn't in the QF word segments. When the mp3 window is
+    // >1.6× the QF reference, assume a prefix and align segments to the END of
+    // the verse window so highlighting tracks the actual spoken words.
+    const ratio = verseDuration / qfVerseDuration;
+    const hasTawwudh = ratio > 1.6;
+    const effectiveStart = hasTawwudh ? timing.endTime - qfVerseDuration : timing.startTime;
+    const effectiveDuration = hasTawwudh ? qfVerseDuration : verseDuration;
+
+    const verseElapsed = currentTimeMs - effectiveStart;
+    if (verseElapsed < 0) return; // Still in ta'awwudh/basmala prefix — no highlight yet
+
+    const qfTime = (verseElapsed / effectiveDuration) * qfVerseDuration;
+
+    // Find which segment qfTime falls in
+    // api.quran.com/v4 segments: [wordFrom, wordTo, timeFrom, timeTo] — 0-based, exclusive upper bound
+    for (const [wFrom, wTo, tFrom, tTo] of segments) {
+      if (qfTime >= tFrom && qfTime < tTo) {
+        if (activeWord?.from !== wFrom || activeWord?.to !== wTo) {
+          setActiveWord({ from: wFrom, to: wTo });
+        }
+        return;
+      }
     }
   };
 
+  // -------------------------------
+  // Utils
+  // -------------------------------
+  const getVerseId = (i: number) => `${surah.surahNo}:${i + 1}`;
 
-//   // Show loading state if surah is not yet loaded
-//   if (!surah) return <div>Loading...</div>;
+  const convertToArabicNumerals = (num: number) => {
+    const map = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+    return num.toString().split('').map(n => map[parseInt(n)]).join('');
+  };
 
-//   return (
-//     <div className="p-4 pb-24"> {/* Add padding-bottom to prevent content from being hidden behind the floating player */}
-//       <button onClick={() => navigate(-1)} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-//         <FaArrowLeft size={20} />
-//       </button>
+  const getFontSizeClass = (size: number) => ({
+    1: 'text-xl',
+    2: 'text-2xl',
+    3: 'text-3xl',
+    4: 'text-4xl',
+  }[size] || 'text-2xl');
 
-//       <h1 className="text-2xl font-bold">{surah.surahName}</h1>
-//       <h2 className="text-xl text-gray-700">{surah.surahNameArabic}</h2>
-
-//       {/* Reciter Selection */}
-//       <div className="mt-4">
-//         <label htmlFor="reciter" className="block text-sm font-medium text-gray-700">
-//           Select Reciter
-//         </label>
-//         <select
-//           id="reciter"
-//           value={selectedReciter}
-//           onChange={(e) => setSelectedReciter(e.target.value)}
-//           className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
-//         >
-//           {Object.entries(reciters).map(([id, name]) => (
-//             <option key={id} value={id}>
-//               {name}
-//             </option>
-//           ))}
-//         </select>
-//       </div>
-
-//       {/* Ayahs */}
-//       <div className="mt-4 space-y-4">
-//         {surah.arabic1.map((ayah: string, index: number) => (
-//           <div key={index} className="p-4 bg-white rounded-lg shadow-md flex items-center justify-between">
-//             <div className="flex-1">
-//             <div className="flex items-start gap-4">
-//             <FaRegBookmark/>
-//   <span className="text-2xl font-arabic ">{index + 1}.</span>
-//   <p className="text-2xl text-right font-arabic leading-loose whitespace-normal break-words flex-1">
-//     {ayah}
-//     <span className="mx-2">{" "}</span> {/* This adds consistent space */}
-//     .{convertToArabicNumerals(index + 1)}
-//   </p>
-// </div>            <p className="text-lg text-gray-700">{surah.english[index]}</p>
-//             </div>
-//             {/* Verse Audio Button */}
-//             <button
-//               onClick={() => handleVerseAudio(index)}
-//               className="ml-4 p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-//             >
-//               {currentVerseIndex === index && isPlaying ? (
-//                 <FaPause size={20} />
-//               ) : (
-//                 <FaPlay size={20} />
-//               )}
-//             </button>
-//           </div>
-//         ))}
-//       </div>
-
-//       {/* Floating Chapter Audio Player */}
-//       <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4">
-//         <h3 className="text-lg font-semibold">Chapter Audio</h3>
-//         <div className="mt-2">
-//         <CustomAudioPlayer
-//             ref={chapterAudioPlayerRef}
-//             audioUrl={
-//               chapterAudio[selectedReciter]?.originalUrl || chapterAudio[selectedReciter]?.url
-//             }
-//             onNext={handleNextSurah}
-//             title={`Surah ${surah.surahName} - ${surah.surahNameArabic}`}
-//             onPlay={() => {
-//               stopAllAudio(); // Stop any verse audio first
-//             }}
-//             onPause={() => {}}
-//             onEnded={() => {}}
-//           />
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-
-// Show loading state if surah is not yet loaded
-if (!surah) return <div>Loading...</div>;
-
-// Helper function to generate verse ID (e.g., "1:1" for Surah 1, Ayah 1)
-const getVerseId = (index: number) => `${surah.surahNo}:${index + 1}`;
-
-return (
-  <div className="p-4 pb-24">
-    <button onClick={() => navigate(-1)} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-      <FaArrowLeft size={20} />
-    </button>
-
-    <h1 className="text-2xl font-bold">{surah.surahName}</h1>
-    <h2 className="text-xl text-gray-700">{surah.surahNameArabic}</h2>
-
-    {/* Reciter Selection */}
-    <div className="mt-4">
-      <label htmlFor="reciter" className="block text-sm font-medium text-gray-700">
-        Select Reciter
-      </label>
-      <select
-        id="reciter"
-        value={selectedReciter}
-        onChange={(e) => setSelectedReciter(e.target.value)}
-        className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
-      >
-        {Object.entries(reciters).map(([id, name]) => (
-          <option key={id} value={id}>
-            {name}
-          </option>
-        ))}
-      </select>
+  if (!surah) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-gray-500 dark:text-gray-400 text-lg">Loading...</div>
     </div>
+  );
 
-    {/* Ayahs with Bookmark Support */}
-    <div className="mt-4 space-y-4">
-      {surah.arabic1.map((ayah: string, index: number) => {
-        const verseId = getVerseId(index);
-        const isBookmarked = bookmarks.has(verseId);
+  // -------------------------------
+  // RENDER
+  // -------------------------------
+  return (
+    <div className="p-4 pb-36 relative">
 
-        return (
-          <div key={index} className="p-4 bg-white rounded-lg shadow-md flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-start gap-4">
-                <button 
-                  onClick={() => toggleBookmark(verseId)}
-                  className="text-xl hover:text-yellow-500"
-                  aria-label={isBookmarked ? "Remove bookmark" : "Add bookmark"}
+      {/* Navigation */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg
+              border border-gray-200 dark:border-gray-700
+              text-gray-600 dark:text-gray-400
+              hover:bg-gray-50 dark:hover:bg-gray-800
+              hover:text-gray-900 dark:hover:text-gray-200
+              transition-colors"
+          >
+            <FaArrowLeft size={13} /><span>Back</span>
+          </button>
+
+          {Number(surahNumber) < 114 && (
+            <button
+              onClick={() => navigate(`/surah/${Number(surahNumber) + 1}`)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg
+                border border-gray-200 dark:border-gray-700
+                text-gray-600 dark:text-gray-400
+                hover:bg-gray-50 dark:hover:bg-gray-800
+                hover:text-gray-900 dark:hover:text-gray-200
+                transition-colors"
+            >
+              <span>Next</span>
+              <FaArrowLeft size={13} className="rotate-180" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setReadingMode(!readingMode)}
+            className={`p-2 rounded-lg transition-colors ${
+              readingMode
+                ? 'bg-gold-100 dark:bg-gold-900/30 text-gold-700 dark:text-gold-400'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+            title={readingMode ? 'Verse mode' : 'Reading mode'}
+          >
+            {readingMode ? <FaList size={16} /> : <FaBookOpen size={16} />}
+          </button>
+
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 rounded-lg text-gray-500 dark:text-gray-400
+              hover:bg-gray-100 dark:hover:bg-gray-800
+              hover:text-gray-700 dark:hover:text-gray-200
+              transition-colors"
+          >
+            <FaCog size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Right settings drawer */}
+      {showSettings && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 z-20"
+            onClick={() => setShowSettings(false)}
+          />
+
+          {/* Drawer */}
+          <div className="fixed top-0 right-0 h-full w-80 bg-white dark:bg-gray-900
+            shadow-2xl z-30 flex flex-col">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3
+              border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <h3 className="font-bold text-lg dark:text-gray-100">Settings</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400
+                  hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <FaTimes size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+
+              {/* Font size */}
+              <div>
+                <label className="text-sm font-medium dark:text-gray-300 block mb-2">
+                  Arabic Font Size
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1,2,3,4].map(size => (
+                    <button
+                      key={size}
+                      onClick={() => setFontSize(size)}
+                      className={`px-3 py-2 rounded-md text-sm transition-colors ${
+                        fontSize === size
+                          ? "bg-gold-500 text-gray-900"
+                          : "bg-gray-100 dark:bg-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {["Small","Medium","Large","X-Large"][size-1]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Repeat */}
+              <div>
+                <label className="text-sm font-medium block mb-2 dark:text-gray-300">
+                  Verse Repeat
+                </label>
+                <select
+                  value={repeatCount}
+                  onChange={(e) => setRepeatCount(Number(e.target.value))}
+                  className="w-full p-2 border border-gray-200 dark:border-gray-600 rounded
+                    bg-white dark:bg-gray-800 dark:text-gray-200"
                 >
-                  {isBookmarked ? (
-                    <FaBookmark className="text-yellow-500" />
+                  <option value={1}>No repeat</option>
+                  <option value={2}>2 times</option>
+                  <option value={3}>3 times</option>
+                  <option value={5}>5 times</option>
+                  <option value={10}>10 times</option>
+                </select>
+              </div>
+
+              {/* Recitation */}
+              <div className="flex flex-col min-h-0">
+                <label className="text-sm font-medium block mb-2 dark:text-gray-300">
+                  Recitation
+                </label>
+
+                {/* Search */}
+                <div className="relative mb-2">
+                  <FaSearch
+                    size={13}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    value={reciterSearch}
+                    onChange={(e) => setReciterSearch(e.target.value)}
+                    placeholder="Search reciter..."
+                    className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600
+                      rounded bg-white dark:bg-gray-800 dark:text-gray-200
+                      placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-gold-500"
+                  />
+                </div>
+
+                {/* List */}
+                <div className="overflow-y-auto max-h-64 rounded border border-gray-200 dark:border-gray-700">
+                  {filteredReciters.length === 0 ? (
+                    <p className="text-sm text-gray-400 p-3 text-center">No results</p>
                   ) : (
-                    <FaRegBookmark />
+                    filteredReciters.map(([id, { name }]) => (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          setSelectedReciter(id);
+                          setShowSettings(false);
+                        }}
+                        className={`w-full text-left px-3 py-2.5 text-sm transition-colors
+                          border-b border-gray-100 dark:border-gray-800 last:border-0 ${
+                          selectedReciter === id
+                            ? 'bg-gold-50 dark:bg-gold-900/30 text-gold-700 dark:text-gold-400 font-medium'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    ))
                   )}
-                </button>
-                <span className="text-2xl font-arabic">{index + 1}.</span>
-                <p className="text-2xl text-right font-arabic leading-loose whitespace-normal break-words flex-1">
-                  {ayah}
-                  <span className="mx-2">{" "}</span>
-                  .{convertToArabicNumerals(index + 1)}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Surah header */}
+      <div className="text-center py-6 border-b border-gray-100 dark:border-gray-700 mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{surah.surahName}</h1>
+        <p className="text-4xl font-arabic mt-2 text-gray-700 dark:text-gray-300 leading-loose">{surah.surahNameArabic}</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{surah.surahNameTranslation}</p>
+        {surah.surahNo !== 1 && surah.surahNo !== 9 && (
+          <p className="text-2xl font-arabic mt-4 text-gray-600 dark:text-gray-400 leading-loose">
+            بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+          </p>
+        )}
+      </div>
+
+      {/* READING MODE */}
+      {readingMode ? (
+        <div className="mt-4 max-w-2xl mx-auto p-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm
+          border border-gray-100 dark:border-gray-700">
+          <div className={`${getFontSizeClass(fontSize)} font-arabic text-right
+            text-gray-900 dark:text-gray-100`} dir="rtl">
+            {surah.arabic1.map((ayah: string, index: number) => {
+              const verseKey = `${surah.surahNo}:${index + 1}`;
+              // Split the original arabic1 text so the font renders identically to before;
+              // wordData.words uses different Unicode that HafsNastaleeq can't render properly
+              const verseWords = wordData?.translations[verseKey]
+                ? ayah.split(/\s+/).filter(Boolean)
+                : null;
+              const isVerseActive = playingVerseIndex === index;
+
+              return (
+                <span key={index} className="inline leading-[3.5rem]">
+                  {verseWords ? (
+                    verseWords.map((word: string, wi: number) => {
+                      const isWordActive = isVerseActive && activeWord !== null &&
+                        wi >= activeWord.from && wi < activeWord.to;
+                      const gloss = wordData?.translations[verseKey]?.[wi];
+                      return (
+                        <span key={wi} className="relative group inline cursor-default">
+                          <span className={`transition-colors duration-150 ${
+                            isWordActive
+                              ? 'text-gold-500 dark:text-gold-400 rounded px-0.5'
+                              : ''
+                          }`}>
+                            {word}{' '}
+                          </span>
+                          {gloss && (
+                            <span className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2
+                              opacity-0 group-hover:opacity-100 transition-opacity duration-150
+                              pointer-events-none z-20">
+                              <span className="block bg-gray-900/95 dark:bg-gray-700 text-white font-sans
+                                font-normal text-xs not-italic rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-xl">
+                                {gloss}
+                              </span>
+                              <span className="block w-2 h-2 bg-gray-900/95 dark:bg-gray-700
+                                rotate-45 rounded-sm mx-auto -mt-1" />
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <>{ayah}{' '}</>
+                  )}
+                  <span className="text-gold-600 dark:text-gold-400 text-base">
+                    ﴿{convertToArabicNumerals(index + 1)}﴾
+                  </span>
+                  {' '}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* VERSE-BY-VERSE MODE */
+        <div className="mt-4 space-y-4">
+          {surah.arabic1.map((ayah: string, index: number) => {
+            const verseId = getVerseId(index);
+            const isBookmarked = bookmarks.has(verseId);
+            const verseKey = `${surah.surahNo}:${index + 1}`;
+            const verseTranslations = wordData?.translations[verseKey];
+            // Use the original arabic1 text split by spaces — same Unicode as before, renders
+            // correctly with HafsNastaleeq; API word Unicode differs and breaks the font
+            const verseWords = verseTranslations ? ayah.split(/\s+/).filter(Boolean) : null;
+            const isVerseActive = playingVerseIndex === index;
+
+            return (
+              <div
+                key={index}
+                id={`ayah-${index + 1}`}
+                className="p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm
+                  border border-gray-100 dark:border-gray-700 space-y-3"
+              >
+                {/* Top row: verse number + actions */}
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full
+                    bg-gold-100 dark:bg-gold-900 text-gold-700 dark:text-gold-300 text-sm font-bold">
+                    {index + 1}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleBookmark(verseId)}
+                      className="p-1.5 rounded-lg text-gray-400
+                        hover:bg-yellow-50 dark:hover:bg-yellow-900/20
+                        hover:text-yellow-500 dark:hover:text-yellow-400
+                        transition-colors"
+                    >
+                      {isBookmarked
+                        ? <FaBookmark className="text-yellow-500" size={16} />
+                        : <FaRegBookmark size={16} />}
+                    </button>
+                    <button
+                      onClick={() => handleVerseAudio(index)}
+                      className={`p-2 rounded-full transition-colors ${
+                        verseTimings[verseKey]
+                          ? currentVerseIndex === index && isPlaying
+                            ? 'bg-gold-600 text-gray-900 shadow-md shadow-gold-200 dark:shadow-gold-900/40'
+                            : 'bg-gold-500 hover:bg-gold-600 text-gray-900'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      }`}
+                      disabled={!verseTimings[verseKey]}
+                    >
+                      {currentVerseIndex === index && isPlaying
+                        ? <FaPause size={14} />
+                        : <FaPlay size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Arabic text — word spans with hover tooltip meanings */}
+                {verseWords ? (
+                  <p className={`${getFontSizeClass(fontSize)} font-arabic text-right
+                    text-gray-900 dark:text-gray-100 leading-loose`} dir="rtl">
+                    {verseWords.map((word: string, wi: number) => {
+                      const isWordActive = isVerseActive && activeWord !== null &&
+                        wi >= activeWord.from && wi < activeWord.to;
+                      const gloss = verseTranslations?.[wi];
+                      return (
+                        <span key={wi} className="relative group inline cursor-default">
+                          <span className={`transition-colors duration-150 ${
+                            isWordActive
+                              ? 'text-gold-500 dark:text-gold-400  rounded px-0.5'
+                              : ''
+                          }`}>
+                            {word}{' '}
+                          </span>
+                          {gloss && (
+                            <span className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2
+                              opacity-0 group-hover:opacity-100 transition-opacity duration-150
+                              pointer-events-none z-20">
+                              <span className="block bg-gray-900/95 dark:bg-gray-700 text-white font-sans
+                                font-normal text-xs not-italic rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-xl">
+                                {gloss}
+                              </span>
+                              <span className="block w-2 h-2 bg-gray-900/95 dark:bg-gray-700
+                                rotate-45 rounded-sm mx-auto -mt-1" />
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })}
+                    {' '}
+                    <span className="text-gold-500 dark:text-gold-400 text-base">
+                      ﴿{convertToArabicNumerals(index + 1)}﴾
+                    </span>
+                  </p>
+                ) : (
+                  <p className={`${getFontSizeClass(fontSize)} font-arabic text-right
+                    text-gray-900 dark:text-gray-100 leading-loose`} dir="rtl">
+                    {ayah} <span className="text-gold-500 dark:text-gold-400">﴿{convertToArabicNumerals(index + 1)}﴾</span>
+                  </p>
+                )}
+
+                {/* English translation */}
+                <p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed border-t
+                  border-gray-100 dark:border-gray-700 pt-3">
+                  {surah.english[index]}
                 </p>
               </div>
-              <p className="text-lg text-gray-700">{surah.english[index]}</p>
-            </div>
-            {/* Verse Audio Button */}
-            <button
-              onClick={() => handleVerseAudio(index)}
-              className="ml-4 p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              {currentVerseIndex === index && isPlaying ? (
-                <FaPause size={20} />
-              ) : (
-                <FaPlay size={20} />
-              )}
-            </button>
-          </div>
-        );
-      })}
-    </div>
+            );
+          })}
+        </div>
+      )}
 
-    {/* Floating Chapter Audio Player */}
-    <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4">
-      <h3 className="text-lg font-semibold">Chapter Audio</h3>
-      <div className="mt-2">
-        <CustomAudioPlayer
-          ref={chapterAudioPlayerRef}
-          audioUrl={
-            chapterAudio[selectedReciter]?.originalUrl || chapterAudio[selectedReciter]?.url
-          }
-          onNext={handleNextSurah}
-          title={`Surah ${surah.surahName} - ${surah.surahNameArabic}`}
-          onPlay={() => {
-            stopAllAudio(); // Stop any verse audio first
-          }}
-          onPause={() => {}}
-          onEnded={() => {}}
-        />
-      </div>
+      {/* Footer Player */}
+      {chapterAudioUrl && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95
+          backdrop-blur-sm shadow-2xl border-t border-gray-200 dark:border-gray-700 p-3">
+          <CustomAudioPlayer
+            ref={chapterAudioPlayerRef}
+            audioUrl={chapterAudioUrl}
+            title={`${surah.surahName} — ${surah.surahNameArabic}`}
+            onTimeUpdate={handleTimeUpdate}
+            onPlay={() => {
+              if (currentVerseIndex !== null) {
+                chapterAudioPlayerRef.current?.clearSegment();
+                setCurrentVerseIndex(null);
+                setIsPlaying(false);
+              }
+            }}
+          />
+        </div>
+      )}
+
     </div>
-  </div>
-);
+  );
 };
+
 export default SurahDetail;
